@@ -246,6 +246,52 @@ class Daemon {
 		}
 	}
 
+	public function inlineDebug() {
+		$this->terminate=false;
+		$pids=$this->getRunningPids();
+		if(!empty($pids)) {
+			throw new DaemonException('The daemon is already running with pid '.implode(', ', $pids));
+		}
+
+		$this->switchUser(); // switch the user if applicable
+
+		if($this->logfile!==null) {
+			if(!($this->logfd=fopen($this->logfile, "a"))) {
+				$this->logfd=null;
+			}
+		}
+
+		fclose(STDIN);
+		umask(0);
+		chdir('/');
+
+		@ob_start(null, 0, PHP_OUTPUT_HANDLER_CLEANABLE);
+		$this->log('Starting the daemon in inline debug mode '.get_class($this->daemonizeable), 'INFO', $this);
+		// let's run the daemonizeable
+		try {
+			$this->daemonizeable->onProcessCreate();
+			try {
+				while(!$this->mustExit()) {
+					$this->daemonizeable->run();
+				}
+			}
+			catch(Exception $e) {
+				$this->log('A '.get_class($e).' exception occurred with message: '.$e->getMessage()."\n".$e->getTraceAsString(), 'ERROR', $this);
+			}
+			$this->daemonizeable->onProcessDestroy();
+		}
+		catch(Exception $e) {
+			$this->log('A '.get_class($e).' exception occurred with message: '.$e->getMessage()."\n".$e->getTraceAsString(), 'ERROR', $this);
+		}
+
+		// process all signals before closing the log file
+		$this->processSignals();
+		$this->log('Stopping the daemon in inline debug mode '.get_class($this->daemonizeable), 'INFO', $this);
+		if($this->logfd!==null) {
+			fclose($this->logfd);
+		}
+	}
+
 	public function start() {
 		$this->terminate=false;
 		$pids=$this->getRunningPids();

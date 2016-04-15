@@ -42,6 +42,7 @@ try {
 		throw new InvalidArgumentException('Usage: '.basename($_SERVER['PHP_SELF']).' start|stop|restart|status');
 	}
 	switch(strtolower($args[1])) {
+		case 'inlinedebug': $d->inlineDebug(); break;
 		case 'start': $d->start(); break;
 		case 'stop': $d->stop(); break;
 		case 'status': echo "Daemon is ".($d->isRunning() ? "running" : "NOT RUNNING" )."\n"; break;

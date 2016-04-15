@@ -23,14 +23,23 @@ abstract class Daemonizeable {
 	}
 }
 
-class DaemonException extends Exception { }
+/**
+ * Exception for the Impersonation
+ */
+class ImpersonationException extends RuntimeException {}
+/**
+ * Exception for Daemon Errors
+ */
+class DaemonException extends RuntimeException { }
 
 class Daemon {
 	private $logfile=null;
 	private $logfd=null;
+	private $runAsUserInfo=null;
 	protected $processTitleFormat='%basename%: Daemon %class%';
 	protected $daemonizeable;
 	protected $terminate=false;
+
 	public function __construct(Daemonizeable $daemonizeable) {
 		$this->daemonizeable = $daemonizeable;
 		$this->daemonizeable->attachDaemon($this);
@@ -39,6 +48,35 @@ class Daemon {
 		pcntl_signal(SIGUSR2, array($this, 'receiveSignal'));
 	}
 
+	/**
+	 * Gets the user the server should use
+	 *
+	 * @return null|string  the user, that the server should use or null in case no user has been set
+	 */
+	public function getRunAsUser() {
+		if($this->runAsUserInfo===null) return null;
+
+		return $this->runAsUserInfo['name'];
+	}
+
+	/**
+	 * Sets the user the server should use
+	 *
+	 * @param string $user  set the user, that the server should use
+	 */
+	public function setRunAsUser($user) {
+		if($user===null) {
+			$this->runAsUserInfo=null;
+			return $this;
+		}
+		$info=posix_getpwnam($user);
+		if($info===false || !is_array($info)) {
+			throw new \DomainException('Invalid username. The user "'.$user.'" does not exist.');
+		}
+		$this->runAsUserInfo=$info;
+
+		return $this;
+	}
 
 	/**
 	 * Returns the process title of the daemon
@@ -190,12 +228,33 @@ class Daemon {
 		}
 	}
 
+	/**
+	 * Switch the user
+	 */
+	protected function switchUser() {
+		if($this->runAsUserInfo===null) return null;
+		if(
+			isset($this->runAsUserInfo['uid']) &&
+			isset($this->runAsUserInfo['gid'])
+		) {
+			if(!(
+				posix_setegid($this->runAsUserInfo['gid']) &&
+				posix_seteuid($this->runAsUserInfo['uid'])
+			)) {
+				throw new ImpersonationException('Cannot switch to user "'.$this->runAsUserInfo['name'].'"');
+			}
+		}
+	}
+
 	public function start() {
 		$this->terminate=false;
 		$pids=$this->getRunningPids();
 		if(!empty($pids)) {
 			throw new DaemonException('The daemon is already running with pid '.implode(', ', $pids));
 		}
+
+		$this->switchUser(); // switch the user if applicable
+
 		$pid=pcntl_fork(); // fork
 		if($pid<0) {
 			throw new DaemonException('Cannot fork the daemon.');

@@ -1,6 +1,9 @@
 <?php
 
-require('Daemon.php');
+require('autoload.php');
+
+use QXS\Daemon\Daemon,
+    QXS\Daemon\Daemonizeable;
 
 class MyDaemon extends Daemonizeable {
 	protected $fd;

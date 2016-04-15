@@ -94,8 +94,11 @@ class Daemon {
 				if(is_object($origin)) {
 					fputs($this->logfd, '['.date('r').']['.strtoupper($level).']['.get_class($origin).'] '.trim($message)."\n");
 				}
-				else {
+				elseif($origin!==null) {
 					fputs($this->logfd, '['.date('r').']['.strtoupper($level).']['.$origin.'] '.trim($message)."\n");
+				}
+				else {
+					fputs($this->logfd, '['.date('r').']['.strtoupper($level).'][Daemonizeable] '.trim($message)."\n");
 				}
 			}
 		}
@@ -268,6 +271,12 @@ class Daemon {
 		}
 	}
 
+	/**
+	 * Starts the daemon
+	 *
+	 * @throws DaemonException in case of a daemon failure
+	 * @throws ImpersonationException in case of an impersonation failure
+	 */
 	public function start() {
 		$this->terminate=false;
 		$pids=$this->getRunningPids();
@@ -342,6 +351,12 @@ class Daemon {
 			// we are the parent
 		}
 	}
+
+	/**
+	 * Stops the daemon
+	 *
+	 * @throws DaemonException in case of a daemon failure
+	 */
 	public function stop() {
 		$pids=$this->getRunningPids();
 		if(empty($pids)) {
@@ -350,9 +365,20 @@ class Daemon {
 		$this->killPids($pids);
 	}
 
+	/**
+	 * Get the running pids
+	 *
+	 * @return array the pids
+	 */
 	public function getRunningPids() {
 		return $this->findSameProcesses();
 	}
+
+	/**
+	 * Is the daemon running?
+	 *
+	 * @return bool  true in case the daemon is running
+	 */
 	public function isRunning() {
 		$pids=$this->getRunningPids();
 		if(empty($pids)) {
@@ -363,16 +389,31 @@ class Daemon {
 		}
 	}
 
+	/**
+	 * Restart the daemon
+	 * 
+	 * @throws DaemonException in case of a daemon failure
+	 * @throws ImpersonationException in case of an impersonation failure
+	 */
 	public function restart() {
 		$this->stop();
 		sleep(1);
 		$this->start();
 	}
 
+	/**
+	 * Must the daemon terminat itself? 
+	 * 
+	 * @return bool  true in case the daemon must exit
+	 */
 	public function mustExit() {
 		$this->processSignals();
 		return $this->terminate;
 	}
+
+	/**
+	 * Process all Signlas
+	 */
 	public function processSignals() {
 		// process normal signals
 		pcntl_signal_dispatch();
@@ -385,6 +426,16 @@ class Daemon {
 		@ob_start(null, 0, PHP_OUTPUT_HANDLER_CLEANABLE);
 
 	}
+
+	/**
+	 * Receives signals
+	 *
+	 * DO NOT MANUALLY CALL THIS METHOD!
+	 * pcntl_signal_dispatch() will be calling this method.
+	 * @param int $signo the signal number
+	 * @see pcntl_signal_dispatch
+	 * @see pcntl_signal
+	 */
 	public function receiveSignal($signo) {
 		switch($signo) {
 			case SIGTERM: $this->terminate=true; break;

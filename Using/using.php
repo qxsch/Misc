@@ -75,6 +75,7 @@ using(new T("3"), new T("4"), function($t1, $t2) {
 	echo $t1->n . " " . $t2->n . "\n";
 });
 
+// disposal IS executed in case of an uncaught exception
 using(new T("5"), new T("6"), function($t1, $t2) {
 	echo $t1->n . " " . $t2->n . "\n";
 	throw new Exception("Serious problem here");
